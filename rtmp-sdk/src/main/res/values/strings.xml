@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RTMP SDK</string>
+    <string name="broadcast">Yayın Yap</string>
+    <string name="viewer">İzle</string>
+    <string name="start_broadcast">Yayını Başlat</string>
+    <string name="stop_broadcast">Yayını Durdur</string>
+    <string name="live">CANLI</string>
+    <string name="viewers">İzleyici</string>
+    <string name="stream_title">Canlı Yayın</string>
+</resources>
