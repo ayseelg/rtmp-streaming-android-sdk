@@ -87,11 +87,6 @@ class ViewerActivity : AppCompatActivity() {
     
     private fun initializePlayer() {
         streamUrl?.let { url ->
-            android.util.Log.d("ViewerActivity", "─────────────────────────────────────")
-            android.util.Log.d("ViewerActivity", "📺 Player başlatılıyor")
-            android.util.Log.d("ViewerActivity", "Orijinal URL: $url")
-            
-            // YouTube, Facebook gibi platformları tespit et
             if (url.contains("youtube.com") || url.contains("rtmp://a.rtmp.youtube.com")) {
                 showYouTubeInfo(url)
                 return
@@ -104,55 +99,27 @@ class ViewerActivity : AppCompatActivity() {
             
             binding.progressBar.visibility = View.VISIBLE
             
-            // ExoPlayer oluştur
             try {
                 player = ExoPlayer.Builder(this).build()
                 binding.playerView.player = player
-                android.util.Log.i("ViewerActivity", "✅ ExoPlayer oluşturuldu")
             } catch (e: Exception) {
-                android.util.Log.e("ViewerActivity", "❌ ExoPlayer oluşturma hatası", e)
-                showError("Player başlatılamadı: ${e.message}")
+                showError("Player başlatılamadı")
                 return
             }
             
-            // RTMP URL'ini HLS formatına dönüştür
             val playbackUrl = if (url.startsWith("rtmp://")) {
-                val hlsUrl = convertRtmpToHls(url, streamKey ?: "test")
-                android.util.Log.i("ViewerActivity", "🔄 RTMP -> HLS dönüşümü")
-                android.util.Log.i("ViewerActivity", "HLS URL: $hlsUrl")
-                Toast.makeText(
-                    this,
-                    "📡 HLS stream yükleniyor...\n$hlsUrl",
-                    Toast.LENGTH_LONG
-                ).show()
-                hlsUrl
+                convertRtmpToHls(url, streamKey ?: "test")
             } else {
-                android.util.Log.i("ViewerActivity", "📡 Direkt URL kullanılıyor: $url")
                 url
             }
             
-            android.util.Log.d("ViewerActivity", "─────────────────────────────────────")
-            
-            // Media item oluştur
             val mediaItem = MediaItem.fromUri(playbackUrl)
             player?.setMediaItem(mediaItem)
             player?.prepare()
             player?.playWhenReady = true
             
-            android.util.Log.d("ViewerActivity", "▶️ Player prepare ve play edildi")
-            
-            // Player event listener
             player?.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
-                    val stateName = when (playbackState) {
-                        Player.STATE_IDLE -> "IDLE"
-                        Player.STATE_BUFFERING -> "BUFFERING"
-                        Player.STATE_READY -> "READY"
-                        Player.STATE_ENDED -> "ENDED"
-                        else -> "UNKNOWN"
-                    }
-                    android.util.Log.d("ViewerActivity", "📊 Playback State: $stateName")
-                    
                     when (playbackState) {
                         Player.STATE_BUFFERING -> {
                             binding.progressBar.visibility = View.VISIBLE
@@ -207,46 +174,26 @@ class ViewerActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         binding.errorCard.visibility = View.VISIBLE
         binding.tvError.text = """
-            📺 YouTube Live Yayını
+            YouTube Live Yayını
             
             Bu yayın YouTube'a gönderiliyor.
-            
-            ✅ YouTube'dan izleyebilirsiniz:
-            • YouTube kanalını açın
-            • Canlı yayını bulun
-            
-            ⚠️ Bu uygulama YouTube yayınlarını
-            doğrudan gösteremiyor.
+            YouTube uygulamasından izleyebilirsiniz.
         """.trimIndent()
         
-        Toast.makeText(
-            this,
-            "YouTube yayınları için YouTube uygulamasını kullanın",
-            Toast.LENGTH_LONG
-        ).show()
+        Toast.makeText(this, "YouTube yayınları için YouTube uygulamasını kullanın", Toast.LENGTH_SHORT).show()
     }
     
     private fun showFacebookInfo(url: String) {
         binding.progressBar.visibility = View.GONE
         binding.errorCard.visibility = View.VISIBLE
         binding.tvError.text = """
-            📘 Facebook Live Yayını
+            Facebook Live Yayını
             
             Bu yayın Facebook'a gönderiliyor.
-            
-            ✅ Facebook'tan izleyebilirsiniz:
-            • Yayıncının profilini açın
-            • Canlı yayını bulun
-            
-            ⚠️ Bu uygulama Facebook yayınlarını
-            doğrudan gösteremiyor.
+            Facebook uygulamasından izleyebilirsiniz.
         """.trimIndent()
         
-        Toast.makeText(
-            this,
-            "Facebook yayınları için Facebook uygulamasını kullanın",
-            Toast.LENGTH_LONG
-        ).show()
+        Toast.makeText(this, "Facebook yayınları için Facebook uygulamasını kullanın", Toast.LENGTH_SHORT).show()
     }
     
     private fun showError(message: String) {

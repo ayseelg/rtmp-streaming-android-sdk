@@ -72,35 +72,16 @@ class MainActivity : AppCompatActivity() {
     private fun observeLiveStreams() {
         binding.progressBar.visibility = View.VISIBLE
         
-        android.util.Log.d("MainActivity", "═══════════════════════════════════════")
-        android.util.Log.d("MainActivity", "🔍 Tüm yayınlar dinleniyor (canlı + geçmiş)...")
-        android.util.Log.d("MainActivity", "═══════════════════════════════════════")
-        
         FirebaseManager.observeAllStreams { streams ->
             binding.progressBar.visibility = View.GONE
-            
-            val liveCount = streams.count { it.isLive }
-            val pastCount = streams.size - liveCount
-            
-            android.util.Log.d("MainActivity", "─────────────────────────────────────")
-            android.util.Log.d("MainActivity", "📊 Yayın listesi güncellendi")
-            android.util.Log.d("MainActivity", "Canlı: $liveCount, Geçmiş: $pastCount, Toplam: ${streams.size}")
-            
-            streams.forEachIndexed { index, stream ->
-                val status = if (stream.isLive) "🔴 CANLI" else "⏸️ GEÇMİŞ"
-                android.util.Log.d("MainActivity", "  ${index + 1}. $status ${stream.title} - ${stream.userName} (${stream.viewerCount} izleyici)")
-            }
-            android.util.Log.d("MainActivity", "─────────────────────────────────────")
             
             if (streams.isEmpty()) {
                 binding.tvEmptyState.visibility = View.VISIBLE
                 binding.rvStreams.visibility = View.GONE
-                android.util.Log.i("MainActivity", "ℹ️ Henüz yayın yok")
             } else {
                 binding.tvEmptyState.visibility = View.GONE
                 binding.rvStreams.visibility = View.VISIBLE
                 adapter.submitList(streams)
-                android.util.Log.i("MainActivity", "✅ ${streams.size} yayın listede gösteriliyor")
             }
         }
     }
