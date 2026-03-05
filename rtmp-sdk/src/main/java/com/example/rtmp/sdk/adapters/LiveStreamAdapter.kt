@@ -8,8 +8,8 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rtmp.sdk.databinding.ItemLiveStreamBinding
+import com.example.rtmp.sdk.di.DependencyContainer
 import com.example.rtmp.sdk.models.LiveStream
-import com.example.rtmp.sdk.utils.FirebaseManager
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -65,7 +65,7 @@ class LiveStreamAdapter(
                 btnJoin.setBackgroundColor(Color.parseColor("#4CAF50"))
                 
                 // Sil butonu - sadece kendi yayınları için göster
-                val currentUserId = FirebaseManager.getCurrentUserId()
+                val currentUserId = DependencyContainer.authRepository.getCurrentUserId()
                 if (stream.userId == currentUserId) {
                     btnDelete.visibility = View.VISIBLE
                     btnDelete.setOnClickListener {

@@ -152,7 +152,7 @@
             
     </androidx.cardview.widget.CardView>
 
-    <!-- Close Button -->
+    <!-- Close Button (top-right) -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btnClose"
         android:layout_width="wrap_content"
@@ -160,11 +160,70 @@
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         android:tint="@color/white"
         android:layout_margin="16dp"
-        app:fabSize="normal"
+        app:fabSize="mini"
         app:backgroundTint="@color/overlay"
         app:borderWidth="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Chat Messages RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvChatMessages"
+        android:layout_width="0dp"
+        android:layout_height="220dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="4dp"
+        android:clipToPadding="false"
+        android:scrollbars="none"
+        android:fadeScrollbars="true"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/chatInputContainer" />
+
+    <!-- Chat Input Row -->
+    <LinearLayout
+        android:id="@+id/chatInputContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="12dp"
+        android:background="#80000000"
+        android:padding="6dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <EditText
+            android:id="@+id/etChatMessage"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:hint="Yorum yaz..."
+            android:textColorHint="#94A3B8"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:background="@android:color/transparent"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:inputType="textShortMessage"
+            android:imeOptions="actionSend"
+            android:maxLines="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSendChat"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Gönder"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            app:backgroundTint="@color/primary"
+            app:cornerRadius="18dp" />
+
+    </LinearLayout>
 
     <!-- Progress Bar -->
     <ProgressBar

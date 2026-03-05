@@ -1,16 +1,23 @@
-package com.example.rtmp.sdk.utils
+package com.example.rtmp.sdk.data.source
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import com.example.rtmp.sdk.models.User
 import com.example.rtmp.sdk.models.LiveStream
 import com.example.rtmp.sdk.models.Viewer
+import com.example.rtmp.sdk.models.ChatMessage
 import kotlinx.coroutines.tasks.await
 
-object FirebaseManager {
+/**
+ * Firebase data source implementation
+ * Handles all Firebase operations (Auth and Realtime Database)
+ */
+class FirebaseDataSource {
     
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val database: DatabaseReference = FirebaseDatabase.getInstance().reference
+    
+    // ============== Auth Operations ==============
     
     fun getCurrentUserId(): String? = auth.currentUser?.uid
     
@@ -18,7 +25,6 @@ object FirebaseManager {
     
     suspend fun registerUser(phoneNumber: String, password: String, firstName: String, lastName: String): Result<User> {
         return try {
-            // Firebase Auth için email formatına dönüştür
             val email = "$phoneNumber@rtmp.app"
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val userId = result.user?.uid ?: throw Exception("Kullanıcı oluşturulamadı")
@@ -37,6 +43,16 @@ object FirebaseManager {
         }
     }
     
+    suspend fun resetPassword(phoneNumber: String): Result<Boolean> {
+        return try {
+            val email = "$phoneNumber@rtmp.app"
+            auth.sendPasswordResetEmail(email).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun loginUser(phoneNumber: String, password: String): Result<User> {
         return try {
             val email = "$phoneNumber@rtmp.app"
@@ -61,6 +77,12 @@ object FirebaseManager {
         }
     }
     
+    fun signOut() {
+        auth.signOut()
+    }
+    
+    // ============== Stream Operations ==============
+    
     suspend fun getStreamData(streamId: String): LiveStream? {
         return try {
             val snapshot = database.child("streams").child(streamId).get().await()
@@ -70,16 +92,14 @@ object FirebaseManager {
         }
     }
     
-    suspend fun createLiveStream(title: String, rtmpUrl: String, streamKey: String): Result<LiveStream> {
+    suspend fun createLiveStream(title: String, rtmpUrl: String, streamKey: String, userId: String, userName: String): Result<LiveStream> {
         return try {
-            val userId = getCurrentUserId() ?: throw Exception("Kullanıcı bulunamadı")
-            val user = getUserData(userId) ?: throw Exception("Kullanıcı bilgileri alınamadı")
             val streamId = database.child("streams").push().key ?: throw Exception("Stream ID oluşturulamadı")
             
             val stream = LiveStream(
                 streamId = streamId,
                 userId = userId,
-                userName = "${user.firstName} ${user.lastName}",
+                userName = userName,
                 title = title,
                 rtmpUrl = rtmpUrl,
                 streamKey = streamKey,
@@ -99,7 +119,7 @@ object FirebaseManager {
     suspend fun endLiveStream(streamId: String): Result<Boolean> {
         return try {
             val updates = hashMapOf<String, Any>(
-                "streams/$streamId/isLive" to false,
+                "streams/$streamId/live" to false,
                 "streams/$streamId/endedAt" to System.currentTimeMillis()
             )
             database.updateChildren(updates).await()
@@ -109,150 +129,84 @@ object FirebaseManager {
         }
     }
     
-    // Tüm yayınları gözlemle (canlı + geçmiş)
     fun observeAllStreams(callback: (List<LiveStream>) -> Unit): DatabaseReference {
         val streamsRef = database.child("streams")
         
-        android.util.Log.d("FirebaseManager", "═══════════════════════════════════════")
-        android.util.Log.d("FirebaseManager", "🔍 observeAllStreams çağrıldı (canlı + geçmiş)")
-        android.util.Log.d("FirebaseManager", "Database ref: ${streamsRef.path}")
-        android.util.Log.d("FirebaseManager", "═══════════════════════════════════════")
-        
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                android.util.Log.d("FirebaseManager", "─────────────────────────────────────")
-                android.util.Log.d("FirebaseManager", "📥 onDataChange tetiklendi")
-                android.util.Log.d("FirebaseManager", "Snapshot exists: ${snapshot.exists()}")
-                android.util.Log.d("FirebaseManager", "Snapshot childCount: ${snapshot.childrenCount}")
-                
                 val streams = mutableListOf<LiveStream>()
-                var totalCount = 0
-                var liveCount = 0
-                var pastCount = 0
                 
                 for (childSnapshot in snapshot.children) {
-                    totalCount++
-                    android.util.Log.d("FirebaseManager", "  Stream ${totalCount}: key=${childSnapshot.key}")
-                    
                     val stream = childSnapshot.getValue(LiveStream::class.java)
-                    android.util.Log.d("FirebaseManager", "    Parsed: $stream")
-                    
                     if (stream != null) {
-                        android.util.Log.d("FirebaseManager", "    isLive: ${stream.isLive}")
-                        android.util.Log.d("FirebaseManager", "    title: ${stream.title}")
-                        android.util.Log.d("FirebaseManager", "    userName: ${stream.userName}")
-                        
-                        if (stream.isLive) liveCount++ else pastCount++
                         streams.add(stream)
-                        android.util.Log.i("FirebaseManager", "    ✅ Eklendi!")
-                    } else {
-                        android.util.Log.e("FirebaseManager", "    ❌ Stream null!")
                     }
                 }
                 
-                // Canlı yayınlar önce, sonra geçmiş yayınlar (tarihe göre)
-                val sorted = streams.sortedWith(compareByDescending<LiveStream> { it.isLive }.thenByDescending { it.startedAt })
-                
-                android.util.Log.d("FirebaseManager", "─────────────────────────────────────")
-                android.util.Log.i("FirebaseManager", "📊 Sonuç: Toplam=$totalCount, Canlı=$liveCount, Geçmiş=$pastCount")
-                android.util.Log.d("FirebaseManager", "─────────────────────────────────────")
-                
+                val sorted = streams.sortedWith(
+                    compareByDescending<LiveStream> { it.isLive }.thenByDescending { it.startedAt }
+                )
                 callback(sorted)
             }
             
             override fun onCancelled(error: DatabaseError) {
-                android.util.Log.e("FirebaseManager", "═══════════════════════════════════════")
-                android.util.Log.e("FirebaseManager", "❌ FIREBASE OKUMA HATASI!")
-                android.util.Log.e("FirebaseManager", "Error: ${error.message}")
-                android.util.Log.e("FirebaseManager", "Code: ${error.code}")
-                android.util.Log.e("FirebaseManager", "Details: ${error.details}")
-                android.util.Log.e("FirebaseManager", "═══════════════════════════════════════")
                 callback(emptyList())
             }
         }
+        
         streamsRef.addValueEventListener(listener)
         return streamsRef
     }
     
-    // Sadece canlı yayınları gözlemle (eski fonksiyon)
     fun observeLiveStreams(callback: (List<LiveStream>) -> Unit): DatabaseReference {
         val streamsRef = database.child("streams")
         
-        android.util.Log.d("FirebaseManager", "═══════════════════════════════════════")
-        android.util.Log.d("FirebaseManager", "🔍 observeLiveStreams çağrıldı")
-        android.util.Log.d("FirebaseManager", "Database ref: ${streamsRef.path}")
-        android.util.Log.d("FirebaseManager", "═══════════════════════════════════════")
-        
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                android.util.Log.d("FirebaseManager", "─────────────────────────────────────")
-                android.util.Log.d("FirebaseManager", "📥 onDataChange tetiklendi")
-                android.util.Log.d("FirebaseManager", "Snapshot exists: ${snapshot.exists()}")
-                android.util.Log.d("FirebaseManager", "Snapshot childCount: ${snapshot.childrenCount}")
-                
                 val streams = mutableListOf<LiveStream>()
-                var totalCount = 0
-                var liveCount = 0
                 
                 for (childSnapshot in snapshot.children) {
-                    totalCount++
-                    android.util.Log.d("FirebaseManager", "  Stream ${totalCount}: key=${childSnapshot.key}")
-                    
                     val stream = childSnapshot.getValue(LiveStream::class.java)
-                    android.util.Log.d("FirebaseManager", "    Parsed: $stream")
-                    
-                    if (stream != null) {
-                        android.util.Log.d("FirebaseManager", "    isLive: ${stream.isLive}")
-                        android.util.Log.d("FirebaseManager", "    title: ${stream.title}")
-                        android.util.Log.d("FirebaseManager", "    userName: ${stream.userName}")
-                        
-                        if (stream.isLive) {
-                            liveCount++
-                            streams.add(stream)
-                            android.util.Log.i("FirebaseManager", "    ✅ Eklendi!")
-                        } else {
-                            android.util.Log.w("FirebaseManager", "    ⚠️ isLive=false, atlandı")
-                        }
-                    } else {
-                        android.util.Log.e("FirebaseManager", "    ❌ Stream null!")
+                    if (stream != null && stream.isLive) {
+                        streams.add(stream)
                     }
                 }
-                
-                android.util.Log.d("FirebaseManager", "─────────────────────────────────────")
-                android.util.Log.i("FirebaseManager", "📊 Sonuç: Toplam=$totalCount, Canlı=$liveCount")
-                android.util.Log.d("FirebaseManager", "─────────────────────────────────────")
                 
                 callback(streams)
             }
             
             override fun onCancelled(error: DatabaseError) {
-                android.util.Log.e("FirebaseManager", "═══════════════════════════════════════")
-                android.util.Log.e("FirebaseManager", "❌ FIREBASE OKUMA HATASI!")
-                android.util.Log.e("FirebaseManager", "Error: ${error.message}")
-                android.util.Log.e("FirebaseManager", "Code: ${error.code}")
-                android.util.Log.e("FirebaseManager", "Details: ${error.details}")
-                android.util.Log.e("FirebaseManager", "═══════════════════════════════════════")
                 callback(emptyList())
             }
         }
+        
         streamsRef.addValueEventListener(listener)
         return streamsRef
     }
     
-    suspend fun joinStream(streamId: String): Result<Boolean> {
+    suspend fun deleteStream(streamId: String, userId: String): Result<Boolean> {
         return try {
-            val userId = getCurrentUserId() ?: throw Exception("Kullanıcı bulunamadı")
-            val user = getUserData(userId) ?: throw Exception("Kullanıcı bilgileri alınamadı")
-            
+            database.child("streams").child(streamId).removeValue().await()
+            database.child("user_streams").child(userId).child(streamId).removeValue().await()
+            database.child("viewers").child(streamId).removeValue().await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // ============== Viewer Operations ==============
+    
+    suspend fun joinStream(streamId: String, userId: String, userName: String): Result<Boolean> {
+        return try {
             val viewer = Viewer(
                 viewerId = userId,
                 streamId = streamId,
-                userName = "${user.firstName} ${user.lastName}"
+                userName = userName
             )
             
             database.child("viewers").child(streamId).child(userId).setValue(viewer).await()
             
-            // İzleyici sayısını artır
             database.child("streams").child(streamId).child("viewerCount")
                 .runTransaction(object : Transaction.Handler {
                     override fun doTransaction(currentData: MutableData): Transaction.Result {
@@ -270,13 +224,10 @@ object FirebaseManager {
         }
     }
     
-    suspend fun leaveStream(streamId: String): Result<Boolean> {
+    suspend fun leaveStream(streamId: String, userId: String): Result<Boolean> {
         return try {
-            val userId = getCurrentUserId() ?: throw Exception("Kullanıcı bulunamadı")
-            
             database.child("viewers").child(streamId).child(userId).removeValue().await()
             
-            // İzleyici sayısını azalt
             database.child("streams").child(streamId).child("viewerCount")
                 .runTransaction(object : Transaction.Handler {
                     override fun doTransaction(currentData: MutableData): Transaction.Result {
@@ -294,7 +245,6 @@ object FirebaseManager {
         }
     }
     
-    // İzleyici sayısını gözlemle (real-time)
     fun observeViewerCount(streamId: String, callback: (Int) -> Unit): DatabaseReference {
         val viewerCountRef = database.child("streams").child(streamId).child("viewerCount")
         
@@ -313,7 +263,6 @@ object FirebaseManager {
         return viewerCountRef
     }
     
-    // İzleyici listesini gözlemle (real-time)
     fun observeViewers(streamId: String, callback: (List<Viewer>) -> Unit): DatabaseReference {
         val viewersRef = database.child("viewers").child(streamId)
         
@@ -340,23 +289,46 @@ object FirebaseManager {
         viewersRef.addValueEventListener(listener)
         return viewersRef
     }
-    
-    // Yayın silme
-    suspend fun deleteStream(streamId: String): Result<Boolean> {
+
+    // ============== Chat Operations ==============
+
+    suspend fun sendChatMessage(streamId: String, userId: String, userName: String, text: String): Result<Boolean> {
         return try {
-            val userId = getCurrentUserId() ?: throw Exception("Kullanıcı bulunamadı")
-            
-            database.child("streams").child(streamId).removeValue().await()
-            database.child("user_streams").child(userId).child(streamId).removeValue().await()
-            database.child("viewers").child(streamId).removeValue().await()
-            
+            val chatRef = database.child("chat").child(streamId)
+            val messageId = chatRef.push().key ?: return Result.failure(Exception("Mesaj ID oluşturulamadı"))
+            val message = ChatMessage(
+                messageId = messageId,
+                streamId = streamId,
+                userId = userId,
+                userName = userName,
+                text = text
+            )
+            chatRef.child(messageId).setValue(message).await()
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-    
-    fun signOut() {
-        auth.signOut()
+
+    fun observeChatMessages(streamId: String, callback: (List<ChatMessage>) -> Unit): DatabaseReference {
+        val chatRef = database.child("chat").child(streamId)
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val messages = mutableListOf<ChatMessage>()
+                for (childSnapshot in snapshot.children) {
+                    val msg = childSnapshot.getValue(ChatMessage::class.java)
+                    if (msg != null) messages.add(msg)
+                }
+                messages.sortBy { it.sentAt }
+                callback(messages)
+            }
+            override fun onCancelled(error: DatabaseError) {
+                callback(emptyList())
+            }
+        }
+
+        chatRef.addValueEventListener(listener)
+        return chatRef
     }
 }
